@@ -1,0 +1,548 @@
+---
+title: Moje zkušenost s portováním knihovny na Arduino
+excerpt: Portovat nízkoúrovňovou knihovnu na novou platformu není snadné. Pojďme se podívat, jak jsem postupoval já.
+author: Vladimír Záhradník
+date: 2020-07-26
+categories: arduino porting programming development embedded jsc
+hero: ./images/hero.jpg
+lang: cs_CZ
+secret: true
+---
+
+Portování softwaru na nové architektury nebo platformy mě vždycky lákalo. Představte si, že software, který nebyl pro vaše zařízení napsaný, na něm najednou běží. Vždy jsem obdivoval lidi, kteří vyvíjejí emulátory pro starší (ale také nové) herní konzole, dělají reverzní inženýrství, případně napíší software na konzolu bez přístupu k devkitu.
+
+## Specifika Arduino platformy
+Moje práce byla o poznání jednodušší, ale přesto jsem se hodně naučil. Měl jsem za úkol rozběhat C-čkovskou knihovnu, která byla psaná pro platformy Windows, Linux a macOS, na platformě Arduino. Autoři knihovny zmiňovali, že portování na nové platformy, včetně mikrokontrolérů, by nemělo být složité, avšak Arduino je dost specifické. Především jde o to, že Arduino nepředstavuje jen jednu čipovou architekturu. Je to framework, se kterým jsou kompatibilní mnohé vývojové desky postavené na odlišných architekturách — MIPS, ARM, RISC. Zároveň autoři definovali v tomto frameworku základní funkce, které musíte ve vašich programech použít. Jinak se vám nepodaří ani vypsat do konzoly „Ahoj, svět.“ V neposlední řadě, tyto čipy jsou relativně málo výkonné, mají sotva 2 kB paměti, ale zajímavé jsou pro nás proto, že umožňují programovat aplikace běžící v reálném čase.
+
+Mikrokontrolér nám dokáže garantovat, že se kritická úloha bude provádět pravidelně, například přes přerušení. Raspberry Pi může být mnohem výkonnější, ale aplikace vyžadující běh v reálném čase dobře nepodporuje. O tom jsem se přesvědčil už když jsme na něm dělali [stopky pro hasičské soutěže][firefighter-stopwatch] a ukázalo se, že RPi není schopno přijímat stabilní tok impulsů. Některé zkrátka nezachytilo, protože pod Linuxem právě běžel na zlomek sekundy jiný úkol, a přepočet z impulsů na otáčky motoru nám kolísal řádově o plus/mínus 100 otáček. Mikrokontrolér nemá nad sebou žádný operační systém, váš kód běží přímo na něm. Proto máte mnohem větší kontrolu, jak zajistit běh kódu kritického na čas.
+
+## Real-time operační systémy
+Samozřejmě, existují i real-time operační systémy. Ty jsou upraveny na běh úloh kritických na čas, přičemž se pro ně programuje snadněji. Máte více paměti, dospělejší systém, výkonnější procesor a plnohodnotnou implementaci jazyka C/C++, případně i jiných jako například Rust či Python/MicroPython. Pro Raspberry Pi jsem však nic aktuální nenašel. Prý by na něm měl běžet [FreeRTOS][free-rtos] od Amazonu, ale informace jsou ještě pro RPi2. Na nejnovějším RPi4 tedy nemám žádnou záruku. Pak je tu projekt, který mě osobně zajímá už déle, [Zephyr Project][zephyr]. Ten však Raspberry Pi nemá v seznamu podporovaných platforem. Takže to shrnu, programování aplikací pro real-time operační systémy má smysl prozkoumat hlouběji a rozhodně se na to podívám.
+
+## SimpleMotionV2
+Potřebuji rozběhat komunikaci s driverem, který ovládá servomotor. Je důležité, aby komunikace probíhala velmi rychle, několik set krát za sekundu. Potřebuji číst reálné údaje z motoru a korigovat pohyb motoru, pokud vyhodnotí, že pohyb se vychyluje z normy. V našem projektu používáme driver [IONI][ioni-drive] od firmy Granite Devices. Komunikace probíhá po sběrnici RS485, přičemž firma vyvinula vlastní komunikační protokol, SimpleMotion. RS485 totiž definuje pouze fyzické parametry přenosové linky a je na vás, jak budete informace přenášet.
+
+Firma dává k produktu IONI i nástroj [Granity][granity], pomocí kterého umíte nastavit parametry driveru. Ovšem ten běží jen na některých platformách, a hlavně v naší aplikaci, kde potřebujeme číst data v reálném čase velmi často, je nepoužitelný. Šel jsem tedy více do hloubky. Knihovna pro protokol SimpleMotion je k dispozici jako open-source na jejich [GitHubu][simplemotion-github].
+
+## Než začneme
+Než začneme portovat knihovnu na novou platformu, potřebujeme dát dohromady co nejvíce informací. V mém případě jsem si nastudoval, jak funguje RS485 sběrnice. Dále jsem se podíval na všechno, co jsem našel, k driveru IONI a prostudoval jsem si celou [wiki][simplemotion-wiki] protokolu SimpleMotion. Nebylo toho však mnoho. Informace jsou strohé a neúplné. Dozvíte se, že do driveru můžete zapisovat příkazy dávkově do bufferu a že si je bude spouštět sám, čímž se vyhnete potřebě realtime hardwaru, a druhou možností je právě ta, že příkazy zapisujeme průběžně a to velmi rychle. Podle wiki je horní limit až [nějakých 20 000 příkazů][simplemotion-port] za sekundu.
+
+Wiki se odkazuje na pár [příkladů][simplemotion-examples], jak takovou komunikaci rozběhat. No musím hned dodat, že už pět let je nikdo neaktualizoval a u většiny stávajících příkladů je komentář, že nic nedělají.
+
+<div className="Image__Medium">
+  <img src="./images/examples-not-implemented.png" alt="Nefungující příklady" />
+  <figcaption>Nefungující příklady</figcaption>
+</div>
+
+Nejlepší zdroj informací mi paradoxně poskytl zdrojový kód knihovny, a to není bůhví co. V jejím repozitáři jsem našel podsložku `doc`, kde byl uveden popis protokolu. Zjednodušeně, poté co otevřete RS485 linku, komunikujete se zařízeními asymetricky podle modelu master/slave. Váš počítač, respektive mikrokontrolér, je master. Komunikuje s jedním, nebo více slave zařízeními. Všechna zařízení jsou připojena na tutéž sběrnici a každé zařízení má přiřazenou jedinečnou adresu uzlu. Vy, jako master, dokážete parametry číst nebo zapisovat. V obou případech potřebujete vědět název parametru a adresu uzlu.
+
+Všechny parametry jsou definovány na [wiki stránce][simplemotion-parameters] protokolu a rovněž v [hlavičkovém souboru knihovny][simplemotion-parameters-source].
+
+Soubor Readme nám dává užitečné informace k portování. Uvádí seznam povinných souborů, které musí být zkompilované, a také volitelné soubory, které přidávají nějakou funkčnost, ale nejsou kritické. Rovněž v části „Porting to new platform“ nacházíme základní instrukce, co je třeba udělat.
+
+Pro účely tohoto článku sem tyto poznatky uvedu. Později se na ně budu odvolávat.
+
+### Nutné soubory
+- simplemotion.c/.h - Jádro celé knihovny. Definuje API, které volají uživatelé z jejich kódu, například funkci `smOpenBus ( ... )`, která inicializuje komunikaci, nebo funkci `smRead1Parameter ( ... )`, která přečte ze slave zařízení nějakou hodnotu
+- sm485.h - Definice příkazů pro komunikaci po RS485
+- sm_consts.c - Predpočítané CRC tabulky
+- simplemotion_defs.h - Parametry, které můžeme poslat slave zařízením
+- simplemotion_private.h - Definice interních struktur a parametrů, které se používají pouze uvnitř knihovny a uživatel o nich ani nemá vědět
+- busdevice.c/.h - Zabezpečuje komunikaci po RS485 sběrnici
+
+### Nepovinné súbory
+- bufferedmotion.c/.h - Kód, který přidává možnost posílat příkazy do driveru v dávkách. Driver si je uloží do zásobníku a postupně je vykonává
+- devicedeployment.c/.h - Kód, který umožňuje do driveru nahrát firmware, případně poslat do něj nastavení
+- soubory ve složce drivers/ - Ovladače pro základní platformy, které implementují funkčnost vyžadovanou kódem v `busdevice.h` a zjednodušují sestavení RS485 komunikace
+
+Ještě dodám, že celá knihovna je napsána v jazyce C. Později se to ukáže jako dost důležitý fakt.
+
+## Začínáme portovat
+Ať už portujete knihovnu, jako je ta moje, nebo nějaký složitý herní engine, základní postup se až tak neliší. V prvním kroku potřebujete dát dohromady co nejvíce informací o zdrojové platformě, cílové platformě a ideálně i ohledně architektury a struktury kódu projektu, který se snažíte portovat. Vše potřebné jsem shrnul v bodě výše.
+
+V dalším kroku jsem si repozitář se zdrojovými kódy naklonoval do svého počítače:
+
+```bash
+git clone git@github.com:GraniteDevices/SimpleMotionV2.git
+Cloning into 'SimpleMotionV2'...
+remote: Enumerating objects: 162, done.
+remote: Counting objects: 100% (162/162), done.
+remote: Compressing objects: 100% (113/113), done.
+remote: Total 1316 (delta 95), reused 103 (delta 49), pack-reused 1154
+Receiving objects: 100% (1316/1316), 2.03 MiB | 3.55 MiB/s, done.
+Resolving deltas: 100% (807/807), done.
+```
+
+Protože můj počítač je mezi podporovanými platformami, pokusil jsem se knihovnu zkompilovat. Chtěl jsem vidět, jaký bude výstup, případně jaké chyby vyhodí kompilátor. Autoři mají rozběhanou automatizaci přes [Travis CI][travis-ci]. Stačilo se mi podívat na soubor `.travis.yml` a našel jsem, co jsem potřeboval. Knihovna má připravený Makefile a dokonce i testy. Sestavíme ji jednoduše:
+
+```bash
+make
+```
+
+A testy (i když jich není mnoho) spustíme takto:
+
+```bash
+make test
+```
+
+Na zdrojové platformě se knihovna úspěšně zkompilovala. Ačkoli kompilátor vyhodil nějaké chyby, podle komentářů v kódu usuzuji, že jsou očekávané.
+
+```bash
+...
+drivers/tcpip/tcpclient.c:255:16: warning: cast from pointer to integer of different size [-Wpointer-to-int-cast]
+  255 |     int sockfd=(int)busdevicePointer;//compiler warning expected here on 64 bit compilation but it's ok
+      |
+```
+
+## Sestavení knihovny na cílové platformě
+Toto by měl být váš první cíl. Očekává se, že knihovnu na nové platformě nezkompilujete. Knihovna, která by se zkompilovala bez jakýchkoliv úprav, je zřejmě dosti jednoduchá. [Arduino IDE][arduino-jde], vývojové prostředí pro Arduino, nepoužívá žádné Makefile soubory. Pokud vytvoříte v Arduino IDE sketch (projektový soubor s příponou .ino), tento soubor [projde několika fázemi][arduino-sketch-build-process], dokud se sestaví. Nejprve se předzpracuje a transformuje se na plnohodnotný C++ kód. Arduino preprocesor do něj doplní chybějící `#include` řádky a zahrne do něj obsah hlavičkových souborů, především `Arduino.h`. Rovněž automaticky vytvoří deklarace funkcí, které máte definovány ve vašem projektu. Následně se snaží dohledat potřebné závislosti (knihovny) pro váš projekt, vybrat cílovou architekturu podle typu vývojové desky a v posledním kroku všechny tyto informace předá kompilátoru. Ten se pokusí kód sestavit a pokud uspěje, firmware se nahraje do mikrokontroléru.
+
+Z toho, jak funguje sestavování kódu na Arduino vyplývá, že knihovnu nedokážeme sestavit přímo. Potřebujeme vytvořit nějaký jednoduchý sketch, který bude volat funkci z této knihovny. Může to být cokoli. Arduino IDE najde v projektu závislost na vaši knihovnu a pokusí se ji sestavit. Pravděpodobně v tomto kroku selže, tak jako u mě.
+
+Knihovnu samozřejmě ještě nemáte v rejstříku Arduino knihoven. Arduino umožňuje nainstalovat přes IDE `.zip` archiv s kódem knihovny, nebo si můžete knihovnu zkopírovat sami. Arduino IDE hledá knihovny v konkrétních složkách, v mém případě:
+
+```bash
+[vzahradnik@EliteBook ~]$ ls -la Arduino/libraries/
+total 4
+drwxr-xr-x 1 vzahradnik vzahradnik  86 jul 25 23:37 .
+drwxr-xr-x 1 vzahradnik vzahradnik  58 jul 24 18:38 ..
+drwxr-xr-x 1 vzahradnik vzahradnik 234 jul 24 16:06 CONTROLLINO
+-rw-r--r-- 1 vzahradnik vzahradnik  86 jul 24 16:05 readme.txt
+drwxr-xr-x 1 vzahradnik vzahradnik 146 jul 26 11:16 SimpleMotionV2-Arduino
+[vzahradnik@EliteBook ~]$
+```
+
+Je úplně jedno, jak pojmenujete složku s knihovnou. Arduino IDE hledá hlavičkové soubory ve všech těchto složkách.
+
+Můj úplně první Arduino sketch vypadal nějak takto:
+
+<div className="Image__Medium">
+  <img src="./images/first-arduino-ide-build.png" alt="První sestavení knihovny na Arduino IDE" />
+  <figcaption>První sestavení knihovny na Arduino IDE</figcaption>
+</div>
+```
+
+Překvapivě, těch chyb bylo mnohem méně než jsem čekal. Chybu s includem jsem vyřešil jednoduše:
+
+```diff
+diff --git a/devicedeployment.c b/devicedeployment.c
+index 0eb954f..2995a41 100755
+--- a/devicedeployment.c
++++ b/devicedeployment.c
+@@ -1,6 +1,6 @@
+ #include "devicedeployment.h"
+ #include "user_options.h"
+-#include "utils/crc.h"
++#include "crc.h"^M
+ #include <stdio.h>
+ #include <string.h>
+ #include <stdlib.h>
+```
+
+## Zablokování funkčnosti, kterou nelze portovat
+Překvapivě po této úpravě se knihovna sestavila. Rozhodně to však neznamená, že je i funkční. Arduino IDE pravděpodobně kompiluje jen to, co musí. V sketchi includuji soubor `simplemotion.h`, někde v něm se includuje `devicedeployment.h` a ten includuje `crc.h`. Includy tedy seběhnou pro všechny soubory navázané na ten, který zahrnujete v projektu. Avšak zkompiluje se jen ta funkčnost, kterou používáte. Já jsem používal jedinou funkci, `smGetVersion()`, která na žádné jiné nezávisela, a proto kód zběhl. Navzdory nedokonalostem je to dobrá počáteční pozice. Soubor `simplemotion.h` totiž includuje i hlavičkové soubory jako tyto:
+
+```c
+...
+#include <stdio.h>
+#include <stdint.h>
+...
+```
+
+Překvapilo mě, že tyto soubory pro mou architekturu našel. Arduino framework tyto soubory neimplementuje, takže pravděpodobně budou součástí kompilátoru [GCC pro architekturu AVR][avr-gcc], kterou používám. Později jsem tuto domněnku i potvrdil. Paralelně s Arduino IDE mám rozbehané i [PlatformIO][platformio], které si stahuje závislosti, jako například tento kompilátor, do složky `.platformio/packages`. Přímo v něm jsem našel složku `toolchain-atmelavr` obsahující hlavičkové soubory poskytované kompilátorem, a také složku `framework-arduino-avr`, poskytující hlavičkové soubory Arduino frameworku. Možnost prohlédnout si tyto soubory a hledat v nich definice funkcí či C++ tříd se ukázala jako velmi výhodná.
+
+Můj kompilátor implementuje většinu standardní knihovny jazyka C, proto kompilace proběhla. No v knihovně SimpleMotion jsou i volání, které vyžadují ukazatel na soubor a podobně. Přirozeně, na mikrokontroléru se soubory pracovat nemůžeme. Kód se sice sestaví, ale to neznamená, že i funguje. V dalším kroku jsem se rozhodl zmapovat, jaké funkce ze standardní knihovny C SimpleMotion vlastně volá. Ve všech souborech jsem tedy zakomentoval include řádky a pozoroval, na čem padne kompilace. Kompilace mi vygenerovala asi přes 2000 řádků chyb, ale většina se opakovala. Přehledně jsem si zmapoval, jaké funkce knihovna používá a určil jsem ty, které potřebuji nahradit za nějaký funkční Arduino variant.
+
+```bash
+...
+# stdio.h
+/home/vzahradnik/Arduino/libraries/SimpleMotionV2/simplemotion.h:106:52: error: unknown type name 'FILE'
+  106 | LIB void smSetDebugOutput( smVerbosityLevel level, FILE *stream );
+/home/vzahradnik/Arduino/libraries/SimpleMotionV2/simplemotion.c:1131:18: warning: incompatible implicit declaration of built-in function 'snprintf'
+
+/home/vzahradnik/Arduino/libraries/SimpleMotionV2/simplemotion.c:111:17: warning: implicit declaration of function 'fprintf' [-Wimplicit-function-declaration]
+  111 |                 fprintf(smDebugOut,"%s: %s",smBus[handle].busDeviceName, buffer);
+/home/vzahradnik/Arduino/libraries/SimpleMotionV2/devicedeployment.c:858:7: warning: implicit declaration of function 'fopen' [-Wimplicit-function-declaration]
+/home/vzahradnik/Arduino/libraries/SimpleMotionV2/devicedeployment.c:865:5: warning: implicit declaration of function 'fseek' [-Wimplicit-function-declaration]
+/home/vzahradnik/Arduino/libraries/SimpleMotionV2/devicedeployment.c:866:16: warning: implicit declaration of function 'ftell' [-Wimplicit-function-declaration]
+/home/vzahradnik/Arduino/libraries/SimpleMotionV2/devicedeployment.c:877:9: warning: implicit declaration of function 'fclose' [-Wimplicit-function-declaration]
+/home/vzahradnik/Arduino/libraries/SimpleMotionV2/devicedeployment.c:885:15: warning: implicit declaration of function 'fread' [-Wimplicit-function-declaration]
+
+# stddef.h
+/home/vzahradnik/Arduino/libraries/SimpleMotionV2/simplemotion.h:199:39: error: unknown type name 'size_t'
+  199 | LIB int smDescribeSmStatus(char* str, size_t size, SM_STATUS status);
+/home/vzahradnik/Arduino/libraries/SimpleMotionV2/simplemotion.c:21:18: error: 'NULL' undeclared here (not in a function)
+/home/vzahradnik/Arduino/libraries/SimpleMotionV2/devicedeployment.c:840:13: warning: implicit declaration of function 'strcpy' [-Wimplicit-function-declaration]
+
+# stdarg.h
+/home/vzahradnik/Arduino/libraries/SimpleMotionV2/simplemotion.c: In function 'smDebug':
+/home/vzahradnik/Arduino/libraries/SimpleMotionV2/simplemotion.c:95:5: error: unknown type name 'va_list'
+
+# string.h
+/home/vzahradnik/Arduino/libraries/SimpleMotionV2/simplemotion.c: In function 'smOpenBus':
+/home/vzahradnik/Arduino/libraries/SimpleMotionV2/simplemotion.c:248:5: warning: implicit declaration of function 'strncpy' [-Wimplicit-function-declaration]
+/home/vzahradnik/Arduino/libraries/SimpleMotionV2/simplemotion.c:967:2: warning: implicit declaration of function 'memcpy' [-Wimplicit-function-declaration]
+
+/home/vzahradnik/Arduino/libraries/SimpleMotionV2/devicedeployment.c:97:13: warning: incompatible implicit declaration of built-in function 'strlen'
+/home/vzahradnik/Arduino/libraries/SimpleMotionV2/devicedeployment.c:101:6: warning: implicit declaration of function 'strncmp'
+/home/vzahradnik/Arduino/libraries/SimpleMotionV2/devicedeployment.c:288:5: warning: incompatible implicit declaration of built-in function 'sprintf'
+...
+```
+
+Už na první pohled vidím, že se soubory pracuje pouze kód na nahrávání firmwaru do driverů, `devicedeployment.c`. Je to logické, odněkud ty data potřebuje číst. Tato funkčnost však není kritická, je uvedena pouze jako volitelná, a proto jsem ji zablokoval. Využil jsem na to direktivy preprocesoru. Když kompilujete knihovnu pro Arduino, někde se definuje flag `ARDUINO`. Následně si mohu kontrolovat, zda běží kód v tomto prostředí. Dělá se to takto:
+
+```c
+#ifdef ARDUINO
+// Věci specifické pro Arduino
+#endif
+```
+
+Rozhodl jsem se přidat tuto kontrolu hned na začátek hlavičky. Takto zajistím, že na Arduinu se vytvoří „prázdný“ objektový soubor. Tím, že se kód z hlavičky vyhodí, nebude jeho API dostupné z knihovny. Podobně musíme přidat klauzuli i do C-čkovského souboru, který se snaží implementovat funkce vyhozené z kódu.
+
+```c
+#ifndef SMDEPLOYMENTTOOL_H
+#define SMDEPLOYMENTTOOL_H
+
+// Zabraň kompilaci na Arduino deskách
+#ifndef ARDUINO
+
+...
+
+#endif // ARDUINO
+#endif // SMDEPLOYMENTTOOL_H
+```
+
+## Co je a co není možné portovat?
+Kód jsem analyzoval a průběžně upravoval pro Arduino. S výjimkou kódu, který chtěl příkazy číst ze souboru, se zbytek dal nějak upravit. Nejdůležitější body jsou následující:
+- Funkčnost pro komunikaci po sběrnici definovaná v souboru `busdevice.h`
+- Funkce `void smDebug ( ... )` zapisuje logy do souboru. Já ji předělal, aby na Arduinu zapisovala do konzoly. Ano, je to pomalé, ale je to jen na ladění.
+
+Na oba případy se nyní podrobně podíváme.
+
+## Komunikace se sběrnicí RS485 (busdevice.h)
+Tento modul je základem komunikace s ostatními zařízeními protokolem SimpleMotion. Definuje čtyři callback funkce a pokud je implementujete pro vaše zařízení, měla by komunikace začít fungovat. Zbytek kódu v `busdevice.h/.c` je už platformově nezávislý. Tyto čtyři funkce zajišťují otevření a zavření komunikačního kanálu, čtení dat ze sběrnice a posílání dat po sběrnici. Je tam ještě jedna funkce, která slouží například k tomu, že se flushne RX/TX buffer.
+
+Autoři této knihovny zároveň připravili ovladače pro nejběžnější platformy. Ty zajistí komunikaci po RS485 přes sériovou linku, případně přes USB převodník s čipem FTDI. Jsou platformově specifické, fungují pod Windowsem, Linuxem i macOS. Standardně jsou tyto ovladače zakázány a uživatel je musí povolit při kompilaci flagem `ENABLE_BUILT_IN_DRIVERS`. V takovém případě si uživatel zavolá funkci `smOpenBus ( const char * devicename )`, kde jí zadá jako parametr název portu (řekněme `/dev/ttyS0`). Kód se postupně snaží volat jednotlivé ovladače a pokud některý z nich nevrátí při inicializaci chybu, komunikace se považuje za úspěšnou. Ovladače přímo v sobě implementují tyto čtyři základní callback funkce.
+
+Alternativou je implementovat tyto callback funkce přímo ve vašem kódu. V takovém případě zavoláte v kódu funkci `smOpenBusWithCallbacks ( ... )`, jejíž definujete pomocí parametrů reference na callback funkce. I když je tento způsob funkční a úspěšně jsem ho otestoval s mým [Controllinem][controllino], jelikož děláme Arduino knihovnu, můžeme si dovolit začlenit kód na inicializaci sběrnice přímo do knihovny v podobě nového ovladače. Zatím jsem implementoval jednoduchý ovladač pro průmyslové Controllino Maxi/Mega, které právě používám a také pro [ESP32 Grey od M5Stack][m5stack-grey].
+
+Pokud se nám dosud knihovnu dařilo úspěšně zkompilovat, po povolení flagu `ENABLE_BUILT_IN_DRIVERS` se to změní. Najednou se začnou kompilovat všechny ovladače ze složky `drivers` a kým kompilátor poskytoval některé základní hlavičkové soubory standardního C-čka, u ovladačů už narazíte. Pracují například se sockety, mají volání na `pthread`, a tak dále. Nejprve jsem zkoušel upravit kód pomocí `#ifdef ARDUINO # endif` bloků, jen aby kód zkompiloval. Ukázalo se, že kód je už tak specifický, že to nemá cenu. Nakonec jsem udělal něco podobného jako u souboru `devicedeployment.h` výše a zablokoval jsem veškerý stávající kód pro každý ovladač.
+
+```c
+#ifndef SM_D2XX_H
+#define SM_D2XX_H
+
+#ifndef ARDUINO
+// Původní kód
+#endif // ARDUINO
+#endif
+```
+
+Po této úpravě již kompilace opět běžela. Mohl jsem se pustit do vytvoření ovladače pro RS485 komunikaci pro Controllino a ESP32 Grey. Jak jsem již napsal, základem je implementovat pár funkcí, které si knihovna zavolá. Obě desky mají ukázkové příklady pro RS485 komunikaci. Rozběhat sběrnici se dá už pár řádky kódu. Oba ovladače jsou si velmi podobné, fungování si vysvětlíme na ovladači pro Controllino. Pro představu, takto jednoduše zajistíme čtení dat:
+
+```cpp
+smint32 controllinoRs485PortRead(smBusdevicePointer busdevicePointer, smuint8 *buf, smint32 size)
+{
+    smint32 n = 0;
+
+    // Čti pouze když jsou dostupná data
+    if (Serial3.available() > 0) {
+          n = Serial3.readBytes(buf, size);
+
+    }
+
+    return n;
+}
+```
+
+Oproti ostatním ovladačům je tento kód minimalistický. Vše za nás řeší Arduino framework. Podobně jsem implementoval i ostatní funkce. Zmíním však jednu věc, která se ukázala jako problémová. Arduino mnohé věci implementuje jako C++ objekty (všimněte is objekt `Serial3`). Jelikož je knihovna psaná v C-čku, narazil jsem na problémy interoperability mezi C a C++. Tyto problémy probereme v samostatné části.
+
+## Logování
+Logování je implementované pomocí interní funkce `void smDebug ( ... )`. Ta zapisuje logy do souboru, což v případě Arduino není možné. Všechna volání funkce `printf` jsem nahradil přímým zápisem na konzoli přes objekt `Serial`. Ten je dostupný v celém Arduino projektu, stačí zahrnout knihovnu `Arduino.h`. Úprava vypadala nějak takto:
+
+```c
+...
+if(smIsHandleOpen(handle)==smtrue)
+{
+    #ifdef ARDUINO
+    Serial.print(smBus[handle].busDeviceName);
+	Serial.print(": ");
+    Serial.print(buffer);
+    #else
+    fprintf(smDebugOut,"%s: %s",smBus[handle].busDeviceName, buffer);
+    #endif
+...            }
+```
+
+Všimněte si, že jedno volání `fprintf(...)` jsem nahradil několika voláními funkce `print(...)`. Ta neumožňuje specifikovat formát a spojit několik proměnných do jednoho řetězce. Přemýšlel jsem, že bych jí alokoval zásobník, do kterého bych zapisoval hotové řetězce pomocí funkce `snprintf(...)`, nakonec jsem se však rozhodl šetřit paměť. Není jí až tak mnoho a rychlosti by to také velmi nepomohlo. Výpis na konzoli je velmi pomalý a je skutečně vhodný pouze během ladění programu. V produkčním programu kompilaci výpisů zakážete vymazáním flagu `ENABLE_DEBUG_PRINTS`. To můžete udělat i přímo ve vašem Arduino sketchi, a to takto:
+
+```c
+#undef ENABLE_DEBUG_PRINTS
+```
+
+Pojďme se nyní podívat na několik problémů, které jsem řešil dlouhé hodiny. Poukazují na to, jaký je občas vývoj zrádný.
+
+## Sestavovací prostředí Arduino IDE
+Jak jsem již zmínil, Arduino IDE dělá mnoho věcí automaticky. Váš kód upraví, zjistí si závislosti a sestaví binární firmware, který nahraje na vývojovou desku. U jednoduchých projektů to funguje docela dobře, ale pokud použijete knihovnu, jako je ta moje, narazíte na několik problémů.
+
+Ten nejčastější byl problém linkeru.
+
+<div className="Image__Medium">
+  <img src="./images/arduino-old-libspec-build-error.png" alt="Knihovna se nesestaví" />
+  <figcaption>Knihovna se nesestaví</figcaption>
+</div>
+
+Tento problém jsem řešil aspoň hodinu. Soubory jsem ve složce měl a kód je volal správně, tak proč je Arduino linker neumí najít? Asi to souvisí s jejich [specifikací knihoven][arduino-library-specification]. Kdysi se kód Arduino knihoven ukládal přímo do kořene repozitáře. Když najde Arduino takto organizovaný kód, automaticky předpokládá, že všechny C-čkovské soubory jsou v téže hierarchii, kód v podsložkách neskompiluje vůbec. Řešením bylo přeorganizovat kód tak, aby odpovídal novější specifikaci. Ta očekává kód knihovny ve složce `src` a také definován manifest s popisem knihovny v kořenu repozitáře. Po těchto jednoduchých úpravách již kód byl zkompilován.
+
+## Výpis na sériovou linku nefunguje
+Na tento problém jsem opět narazil při kompilaci projektu přes Arduino IDE. Když zkompiluji sketch a zahrnu do něj mou knihovnu, nefunguje výpis na sériovou linku. Dlouho jsem zkoumal, zda nemám v kódu něco, co by narušilo základní funkčnost výpisu Arduino frameworku, ale nic jsem nenašel. Předpokládám, že opět jen Arduino IDE něco do kompilace nezahrnulo. Stejný projekt jsem vyzkoušel i v prostředí [PlatformIO][platformio], kde výpis na sériovou linku funguje bezchybně. Osobně si myslím, že při portování je dobré se vyhnout co nejvíce problémům a proto doporučuji stabilní prostředí, kde máte sestavování více pod kontrolou. Knihovnu byste měli odladit pro Arduino IDE až úplně na závěr, když už víte, že kód funguje.
+
+## Interoperabilita mezi C a C++ kódem
+Knihovna SimpleMotion byla napsána v čistém C-čku. Neobsahuje žádné věci z C++. Já jsem se snažil do knihovny zasahovat co nejméně, aby se moje změny daly jednoduše upravit při začleňování nového kódu z upstreamu. Chtěl jsem zachovat možnost knihovnu sestavit na stávajících platformách, akorát s tím, že mezi podporované platformy přibude i Arduino.
+
+Lekce, kterou jsem se naučil velmi tvrdě, zní:
+
+> Pokud zdrojový soubor má příponu .c, kompiluje se v jazyce C a pokud má příponu cpp, kompiluje se v jazyce C ++.
+
+Myslel jsem si, že přípona je nepodstatná a že Arduino automaticky používá kompilátor připraven sestavit C++ kód. Ovšem mýlil jsem se. I tento kompilátor totiž rozlišuje, co kompiluje. Jelikož můj kód se kompiloval jako C-čkovský, dostával jsem zvláštní chyby, jako například neznámé klíčové slovo `class`. Všechny C++ objekty, které Arduino používá, tak nemohu v režimu jazyka C vůbec použít. Řešením je přejmenovat koncovku souboru z `.c` na `.cpp`, ale tím se ukázaly další problémy. Když se soubor kompiluje jako C++, věci, které jsou v C-čku ještě povoleny, najednou v C++ vyhodí v lepším případě upozornění, v horším rovnou chybu.
+
+```bash
+.pio/libdeps/uno/SimpleMotionV2-Arduino/src/simplemotion.cpp:1107:258: warning: ISO C++ forbids converting a string constant to 'char*' [-Wwrite-strings]
+         smDebug(handle,SMDebugLow,"Previous SM call failed and changed the SM_STATUS value obtainable with getCumulativeStatus(). Status before failure was %d, and new error flag valued %d has been now set.\n",(int)smBus[handle].cumulativeSmStatus,(int)stat);
+```
+
+Konkrétně tuto chybu jsem vyřešil tak, že jsem upravil deklaraci funkce, aby očekávala jako parametr řetězcovou konstantu `char const *`. Nicméně řekl jsem si, že nejlepší bude, když všechen Arduino C++ kód oddělím do samostatného modulu, jehož API lze volat i z C-čkovského kódu. Vytvořil jsem modul `arduino_helper.h/.cpp` a umístil jsem ho přímo k ovladačům pro Controllino a pro M5stack. Celkově se moje změny v knihovně dost zpřehlednily. Původní soubor `simplemotion.c` má minimum změn a vše důležité se děje v tomto modulu.
+
+## Problémy s linkerem a klíčové slovo extern
+Myslel jsem si, že vím, co klíčové slovo `extern` dělá. Po hodinách ladění jsem si však uvědomil, že moje znalosti ani zdaleka nestačily. Teď mu už však rozumím dobře.
+
+Toto klíčové slovo má tři významy:
+První význam: Jestliže ho uvedete u proměnné, zpřístupníte ji i ostatním modulům. Obvykle takové proměnné umístíte do hlavičkového souboru, aby je měli ostatní moduly snadno dostupné.
+
+Příklad:
+```c
+/* Hlavička main.h */
+extern int variable;
+
+/* Hlavní modul */
+#include <stdio.h>
+#include "main.h"
+
+int main() {
+    variable = 0;
+}
+
+/* Další modul */
+#include "main.h"
+
+void someFunction() {
+    variable = 1;
+}
+```
+
+Standardně jsou proměnné viditelné jen v tom modulu, kde je definujete. Tímto výrazem to změníte. V hlavním C-čkovskom souboru již tuto proměnnou přímo používáme, a stejně tak i v jiných modulech, které si tento hlavičkový soubor načítají. Název proměnné musí být v celé knihovně jedinečný, jinak se bude linker stěžovat.
+
+Druhý význam: Jestliže `extern` uvedete při deklaraci funkce, zpřístupníte ji i ostatním modulům. U funkcí platí, že `extern` je uveden implicitně a nemusíte ho uvádět. I zde však platí, že název funkce musí být v celé knihovně jedinečný. C-čko nezná jmenné prostory.
+
+Příklad:
+```c
+/* Hlavička main.h */
+extern int doSomeStuff();
+
+/* Hlavní modul */
+#include <stdio.h>
+#include "main.h"
+
+int main() {
+    doSomeStuff();
+}
+
+/* Další modul */
+#include "main.h"
+
+void someFunction() {
+    doSomeStuff();
+}
+```
+
+Třetí význam: `extern "C"` Tento příklad je při interoperabilitě C/C++ nejdůležitější. C++ kompilátor názvy funkcí [upravuje][extern-c]. Dělá to proto, aby uměl rozlišit několik funkcí, které mají stejný název, ale jiné parametry (typické přetěžování funkcí). Aby však bylo možné volat C++ funkce z C-čkovského kódu (a opačně), tímto příkazem řeknete kompilátoru, aby funkce nepřejmenoval. Jinými slovy, v knihovně můžete mít C++ kód v jednom modulu, C kód v jiných modulech, a přesto spolu mohou komunikovat prostřednictvím funcí.
+
+V praxi se tento blok přidává přes direktivy preprocesoru. Pokud si hlavičkový soubor načte modul napsaný v C++, ví, že funkce mají mít názvy kompatibilní s C-čkovským kódem. A modul napsaný v C-čku direktivu extern vůbec neuvidí.
+
+```c
+#ifndef SIMPLEMOTION_H
+#define SIMPLEMOTION_H
+
+...
+
+#ifdef __cplusplus
+extern "C"{
+#endif
+
+// Funkce, jejichž názvy budou kompatibilní s tím, co očekává C-čkovský kód
+LIB int smDescribeStatus(char* str, size_t size, int32_t status);
+
+#ifdef __cplusplus
+}
+#endif
+#endif // SIMPLEMOTION_H
+```
+
+> Direktiva `__cplusplus` je definována pouze pokud se soubor, který hlavičku includuje, kompiluje v režimu C++. V praxi to znamená, že musí mít koncovku `.h` nebo `.cpp`.
+
+## Externí kód nekompatibilní s C
+Když jsem přidával podporu pro ESP32 desky, pro zkompilování projektu jsem musel přidat do knihovny více hlavičkových souborů. Ukázalo se, že po přidání se začne kompilátor stěžovat na chyby jako například `neznámý typ s názvem class`. Zjevně kód knihovny pro ESP32 neobsahuje direktivu `extern "C"` a definuje v sobě třídy. Když přidáte takové hlavičkové soubory do knihovny, soubory v režimu C se nesestaví.
+
+```bash
+/home/vzahradnik/.platformio/packages/framework-arduinoespressif32/cores/esp32/Stream.h:38:13: error: expected '=', ',', ';', 'asm' or '__attribute__' before ':' token
+ class Stream: public Print
+             ^
+In file included from .pio/libdeps/m5stack-grey/SimpleMotionV2-Arduino/src/drivers/arduino/arduino_helper.h:22:0,
+                 from .pio/libdeps/m5stack-grey/SimpleMotionV2-Arduino/src/simplemotion.h:24,
+                 from .pio/libdeps/m5stack-grey/SimpleMotionV2-Arduino/src/simplemotion_private.h:8,
+                 from .pio/libdeps/m5stack-grey/SimpleMotionV2-Arduino/src/sm_consts.c:1:
+/home/vzahradnik/.platformio/packages/framework-arduinoespressif32/libraries/Wire/src/Wire.h:38:1: error: unknown type name 'class'
+ class TwoWire: public Stream
+```
+
+Řešení tohoto problému se ukázalo být jednoduché. Věděl jsem, že objektový kód lze sestavit pouze v režimu C++ a že chyby vznikají pouze při kompilaci souborů v režimu C. Využil jsem direktivu, která mi ověří, v jakém režimu modul kompiluji. Tentokrát jsem však nepřidal klíčové slovo `extern "C"`, ale problematické hlavičkové soubory. Sestavování již proběhlo bez problémů.
+
+```cpp
+#ifdef __cplusplus
+#ifdef ESP32
+#include <Wire.h>
+#include <FS.h>
+#include <SPIFFS.h>
+#include <SD.h>
+#include <HTTPClient.h>
+#endif
+
+extern "C" {
+#endif
+...
+```
+
+## Funkce, které mají jako parametry C++ objekty
+Pokud máte někde v kódu funkce, které očekávají jako parametr ukazatel na objekt, takový kód se nezkompiluje. Jak jsem již ukázal, pro C-čkovské moduly je pojem třída neznámý a kompilátor vyhlásí při tomto typu chybu. Momentálně jsem problém obešel tak, že jsem definoval funkci, která očekává ukazatel na blok `void` a později v C++ kódu si tento ukazatel přetypuji na C++ objekt. Vím, že to není dokonalé, ale funguje to.
+
+Nejprve jsem si zadefinoval přes typedef nový typ:
+
+```c
+typedef void* ArduinoSerial;
+```
+
+Následně už jsem mohl tento typ použít jako parametr funkce:
+
+```c
+LIB void smSetDebugOutput( smVerbosityLevel level, ArduinoSerial serial );
+```
+
+V Arduino sketchi normálně pošlu odkaz na objekt `Serial`:
+
+```cpp
+smSetDebugOutput(SMDebugLow, &Serial);
+```
+
+Ten se přetypuje na `ArduinoSerial`, přeleze přes C-čkovský kód až do `arduino_helper` modulu, kde si ho přetypuji na ukazatel na objekt `Print`. Následně už mohu zapisovat na sériovou linku tak, jak jsem zvyklý.
+
+```cpp
+/*
+ * arduino_helper.cpp
+ *
+ */
+Print* consoleOut = NULL;
+
+#ifdef ENABLE_DEBUG_PRINTS
+void arduinoPrintMessage(const char* message) {
+    if (consoleOut != NULL) {
+        consoleOut->print(message);
+    }
+}
+#endif // DEBUG PRINTS
+```
+
+## Bitové operace, makra a upozornění
+I když mi kompilace seběhne, všiml jsem si množství chyb v makrech. Analýzou jsem zjistil, že makra se používají pouze ve třech funkcích určených převážně na ladění. Odnastavením flagu `ENABLE_DEBUG_PRINTS` se většiny upozornění zbavím. Toto však nemůže být trvalé řešení.
+
+```bash
+...
+pio/libdeps/uno/SimpleMotionV2-Arduino/src/simplemotion.cpp: In function 'int smDescribeFault(char*, size_t, int32_t)':
+.pio/libdeps/uno/SimpleMotionV2-Arduino/src/simplemotion_defs.h:84:25: warning: left shift count >= width of type [-Wshift-count-overflow]
+ #define BV(bit) (1<<(bit))
+                         ^
+.pio/libdeps/uno/SimpleMotionV2-Arduino/src/simplemotion.cpp:1189:20: note: in definition of macro 'APPEND_IF'
+   if (((source) & (name)) != 0) { \
+...
+```
+
+Po hlubší analýze jsem našel problém. Arduino desky postavené na platformě AVR definují velikost typu `int` 16 bitů. To jsem potvrdil pro jistotu tak, že jsem zkompiloval jednoduchý sketch, kde bylo volání `sizeof(int)`. Dostal jsem hodnotu 2 bajty, čili 16 bitů. Knihovna SimpleMotion definuje bitové masky a u některých hodnot překračujeme rozsah 16 bitů. Problém se nachází na dvou místech — v souboru definici `simplemotion_defs.h` a také v souboru, kde se nachází kód pro výpočet CRC, `crc.c`.
+
+Za většinu upozornění byl zodpovědný jeden řádek:
+
+```c
+#define BV(bit) (1<<(bit))
+```
+
+Chybu jsem upravil tak, že jsem místo typu `int` použil `long`, který má na platformě AVR 4 bajty.
+
+```c
+#ifdef __AVR__
+/* Int on Arduino AVR boards is only 2 bytes, which is not enough
+ * for all values defined here. We'll use long instead.
+ */
+#define BV(bit) (1L<<(bit))
+#else
+#define BV(bit) (1<<(bit))
+#endif
+```
+
+Proč jsem nepoužil `#ifdef ARDUINO`? Nuže, Arduino framework běží na různých platformách. Ukázalo se, že například na platformě ESP32 upozornění nedostávám, protože typ int má dostatek bajtů. Proto je lepší upravit definici makra pouze pro ty platformy, kde je to nutné. Podobné úpravy jsem udělal i v kódu na výpočet CRC. Knihovna se již sestavuje bez chyb.
+
+## Rozdíly v kompilaci mezi PlatformIO a Arduino IDE
+Už jsem zmínil několik problémů s kompilací pod Arduino IDE. Pokud však sáhnete na alternativy, u nich můžete narazit na jiné problémy. Obecně však ladím knihovnu tak, aby běžela pod PlatformIO IDE. Proces sestavování je mnohem jasnější a mám nad ním větší kontrolu. Zároveň se kompiluje veškerý kód knihovny, ne jen vybrané části podle toho, jak se Arduino IDE rozhodne. Když kompiluji pod PlatformIO, odpadá mi několik problémů. Chybové výpisy jsou mnohem přehlednější. A hlavně, v takto kompilovaném projektu správně funguje i výpis na sériovou linku. Něco, co zatím v Arduino IDE vyřešené nemám.
+
+<div className="Image__Medium">
+  <img src="./images/platformio-successful-build.png" alt="Projekt v PlatformIO IDE" />
+  <figcaption>Projekt v PlatformIO IDE</figcaption>
+</div>
+
+## Hard fork
+Už když jsem začal na portu knihovny pro Arduino dělat, bylo mi jasné, že změny nebude možné do upstreamu začlenit. Přidat řádky specifické pro Arduino nestačí. Aby byla knihovna kompatibilní, je třeba přeorganizovat kód.
+- Veškerý zdrojový kód musí jít do podsložky `src`
+- Je třeba napsat příklady použití do složky `examples`
+- Je třeba definovat manifest knihovny s aktuálním popisem
+- A je třeba dát žádost o přidání knihovny do oficiálních repozitářů pro Arduino IDE a PlatformIO
+- Bylo by také vhodné nastavit automatizované spouštění sestavy pro Arduino desky přes [Travis CI][travis-ci] s využitím testovacího frameworku [Arduino CI][arduino-ci]
+
+Fork jsem vytvořil pod organizací, se kterou spolupracuji. Najdete ho [zde][simplemotion-fork]. V této chvíli ještě nevím, nakolik ho budu udržovat. Rád bych však knihovnu odevzdal komunitě dostatečně funkční, aby fungovala pod Arduino IDE i PlatformIO. Jelikož zatím mám podporu hlavně pro Controllino a jednu desku s čipem ESP32, rozhodně je možné přidat ovladače i pro další desky nebo rozšiřující moduly.
+
+## Závěr
+Tento projekt mě naučil jedno: každý port je specifický a vždy musíte vědět, co děláte. Jsem si jistý, že některé problémy, na které jsem narazil, by jiné nepřekvapily. Já jako vývojář, který programuje ve více jazycích, jsem rád, že jsem se dokázal relativně rychle adaptovat a úspěšně projekt dokončit. Moje znalosti jsou opět o něco větší a věřím, že jsou přenositelné i na jiné projekty, na kterých budu v budoucnu dělat.
+
+Portování kódu byl pro mě zajímavý rébus. Úkol, který nebyl jednoduchý a zároveň jsem se neměl ani moc koho ptát. Hlavně pro krátkost času. O to víc jsem na výsledek hrdý.
+
+Máte zkušenosti s portování kódu? Pochlubte se v komentáři níže.
+
+[//]: # (Used references)
+[firefighter-stopwatch]: https://www.zahradnik.io/stopky-pro-hasicske-souteze
+[free-rtos]: https://freertos.org/
+[zephyr]: https://www.zephyrproject.org/
+[ioni-drive]: https://granitedevices.com/miniature-servo-drive-ioni/
+[granity]: https://granitedevices.com/wiki/Granity
+[simplemotion-github]: https://github.com/GraniteDevices/SimpleMotionV2
+[simplemotion-wiki]: https://granitedevices.com/wiki/SimpleMotion_V2
+[simplemotion-examples]: https://github.com/GraniteDevices/SimpleMotionV2Examples
+[simplemotion-parameters]: https://granitedevices.com/wiki/List_of_SimpleMotion_parameters
+[simplemotion-parameters-source]: https://github.com/GraniteDevices/SimpleMotionV2/blob/master/simplemotion_defs.h
+[simplemotion-port]: https://granitedevices.com/wiki/SimpleMotion_V2_port
+[travis-ci]: https://travis-ci.com/
+[arduino-ide]: https://www.arduino.cc/en/Main/Software
+[arduino-sketch-build-process]: https://arduino.github.io/arduino-cli/sketch-build-process/
+[avr-gcc]: https://gcc.gnu.org/wiki/avr-gcc
+[arduino-library-specification]: https://github.com/arduino/Arduino/wiki/Arduino-IDE-1.5:-Library-specification
+[platformio]: https://platformio.org/
+[extern-c]: https://stackoverflow.com/questions/1041866/what-is-the-effect-of-extern-c-in-c
+[arduino-ci]: https://github.com/ianfixes/arduino_ci
+[simplemotion-fork]: https://github.com/JSC-electronics/SimpleMotionV2-Arduino
+[controllino]: https://www.controllino.biz/
+[m5stack-grey]: https://m5stack.com/products/grey-development-core

@@ -9,15 +9,15 @@ lang: sk_SK
 secret: true
 ---
 
-Portovanie softvéru na nové architektúry alebo platformy ma vždy lákalo. Predstavte si, že softvér, ktorý nebol pre vaše zariadenie napísaný, na ňom zrazu beží. Vždy som obdivoval ľudí, ktorí vyvíjajú emulátory pre staršie (ale aj nové hracie konzoly), robia reverzné inžiniérstvo, prípadne napíšu softvér na konzolu bez prístupu k devkitu.
+Portovanie softvéru na nové architektúry alebo platformy ma vždy lákalo. Predstavte si, že softvér, ktorý nebol pre vaše zariadenie napísaný, na ňom zrazu beží. Vždy som obdivoval ľudí, ktorí vyvíjajú emulátory pre staršie (ale aj nové) hracie konzoly, robia reverzné inžiniérstvo, prípadne napíšu softvér na konzolu bez prístupu k devkitu.
 
 ## Špecifiká Arduino platformy
 Moja práca bola o poznanie jednoduchšia, ale napriek tomu som sa veľa naučil. Mal som za úlohu rozbehať C-čkovskú knižnicu, ktorá bola písaná pre platformy Windows, Linux a macOS, na platforme Arduino. Autori knižnice spomínali, že portovanie na nové platformy, vrátane mikrokontrolérov, by nemalo byť zložité, avšak Arduino je dosť špecifické. Predovšetkým ide o to, že Arduino nepredstavuje len jednu čipovú architektúru. Je to framework, s ktorým sú kompatibilné viaceré vývojové dosky postavené na odlišných architektúrach — MIPS, ARM, RISC. Zároveň autori definovali v tomto frameworku základné funkcie, ktoré musíte vo vašich programoch použiť. Inak sa vám nepodarí ani vypísať do konzoly „Ahoj, svet.“ V neposlednom rade, tieto čipy sú relatívne málo výkonné, majú sotva 2 kB pamäte, ale zaujímavé sú pre nás preto, že umožňujú programovať aplikácie bežiace v reálnom čase.
 
-Mikrokontrolér nám vie garantovať, že sa kritická úloha bude pravidelne vykonávať, napríklad cez prerušenia. Raspberry Pi môže byť oveľa výkonnejšie, ale aplikácie vyžadujúce beh v reálnom čase dobre nepodporuje. O tom som sa presvedčil už keď sme na ňom robili [stopky pre hasičské súťaže][firefighter-stopwatch] a ukázalo sa, že RPi nie je schopné prijímať stabilný tok impulzov. Niektoré skrátka nezachytilo, pretože pod Linuxom práve bežala na zlomok sekundy iná úloha, a prepočet z impulzov na otáčky motora nám kolísal rádovo o plus/mínus 100 otáčok. Mikrokontrolér nemá nad sebou žiadny operačný systém, váš kód beží priamo na ňom. Preto máte oveľa väčšiu kontrolu, ako zabezpečiť beh kódu kritického na čas.
+Mikrokontrolér nám vie garantovať, že sa kritická úloha bude vykonávať pravidelne, napríklad cez prerušenia. Raspberry Pi môže byť oveľa výkonnejšie, ale aplikácie vyžadujúce beh v reálnom čase dobre nepodporuje. O tom som sa presvedčil už keď sme na ňom robili [stopky pre hasičské súťaže][firefighter-stopwatch] a ukázalo sa, že RPi nie je schopné prijímať stabilný tok impulzov. Niektoré skrátka nezachytilo, pretože pod Linuxom práve bežala na zlomok sekundy iná úloha, a prepočet z impulzov na otáčky motora nám kolísal rádovo o plus/mínus 100 otáčok. Mikrokontrolér nemá nad sebou žiadny operačný systém, váš kód beží priamo na ňom. Preto máte oveľa väčšiu kontrolu, ako zabezpečiť beh kódu kritického na čas.
 
 ## Real-time operačné systémy
-Samozrejme, existujú aj real-time operačné systémy. Tie sú upravené na beh úloh kritických na čas, pričom sa pre nich programuje jednoduchšie. Máte viac pamäte, dospelejší systém, výkonnejší procesor a plnohodnotnú implementáciu jazyka C/C++, prípadne aj iných ako Rust či Python/MicroPython. Pre Raspberry Pi som však nič aktuálne nenašiel. Vraj by na ňom mal bežať [FreeRTOS][free-rtos] od Amazonu, ale informácie sú ešte pre RPi2. Na najnovšom RPi4 teda nemám žiadnu záruku. Potom je tu projekt, ktorý ma osobne zaujíma už dlhšie, [Zephyr Project][zephyr]. Ten však Raspberry Pi nemá v zozname podporovaných platforiem. Takže to zhrniem, programovanie aplikácií pre real-time operačné systémy má zmysel preskúmať hlbšie a rozhodne sa na to v blízkej dobe pozriem.
+Samozrejme, existujú aj real-time operačné systémy. Tie sú upravené na beh úloh kritických na čas, pričom sa pre nich programuje jednoduchšie. Máte viac pamäte, dospelejší systém, výkonnejší procesor a plnohodnotnú implementáciu jazyka C/C++, prípadne aj iných ako Rust či Python/MicroPython. Pre Raspberry Pi som však nič aktuálne nenašiel. Vraj by na ňom mal bežať [FreeRTOS][free-rtos] od Amazonu, ale informácie sú ešte pre RPi2. Na najnovšom RPi4 teda nemám žiadnu záruku. Potom je tu projekt, ktorý ma osobne zaujíma už dlhšie, [Zephyr Project][zephyr]. Ten však Raspberry Pi nemá v zozname podporovaných platforiem. Takže to zhrniem, programovanie aplikácií pre real-time operačné systémy má zmysel preskúmať hlbšie a rozhodne sa na to pozriem.
 
 ## SimpleMotionV2
 Potrebujem rozbehať komunikáciu s driverom, ktorý ovláda servomotor. Je dôležité, aby komunikácia prebiehala veľmi rýchlo, niekoľko sto krát za sekundu. Potrebujem čítať reálne údaje z motora a korigovať pohyb motora, ak vyhodnotím, že pohyb sa vychyľuje z normy. V našom projekte používame driver [IONI][ioni-drive] od firmy Granite Devices. Komunikácia prebieha po zbernici RS485, pričom firma vyvinula vlastný komunikačný protokol, SimpleMotion. RS485 totiž definuje len fyzické parametre prenosovej linky a je na vás, ako budete informácie prenášať.
@@ -34,7 +34,7 @@ Wiki sa odkazuje na zopár [príkladov][simplemotion-examples], ako takúto komu
   <figcaption>Nefungujúce príklady</figcaption>
 </div>
 
-Najlepší zdroj informácií mi paradoxne poskytol zdrojový kód knižnice, a to nie je bohvie čo. V jej repozitári som našiel podpriečinok `doc`, kde bol uvedený popis protokolu. Zjednodušene, potom, ako otvoríte RS485 linku, komunikujete so zariadeniami asymetricky podľa modelu master/slave. Váš počítač, respektíve mikrokontrolér, je master. Komunikuje s jedným, alebo viacerými slave zariadeniami. Všetky zariadenia sú pripojené na tú istú zbernicu a každé zariadenie má priradenú jedinečnú adresu uzla. Vy, ako master, viete parametre čítať alebo zapisovať. V oboch prípadoch potrebujete vedieť názov parametra a adresu uzla.
+Najlepší zdroj informácií mi paradoxne poskytol zdrojový kód knižnice, a to nie je bohvie čo. V jej repozitári som našiel podpriečinok `doc`, kde bol uvedený popis protokolu. Zjednodušene, potom čo otvoríte RS485 linku, komunikujete so zariadeniami asymetricky podľa modelu master/slave. Váš počítač, respektíve mikrokontrolér, je master. Komunikuje s jedným, alebo viacerými slave zariadeniami. Všetky zariadenia sú pripojené na tú istú zbernicu a každé zariadenie má priradenú jedinečnú adresu uzla. Vy, ako master, viete parametre čítať alebo zapisovať. V oboch prípadoch potrebujete vedieť názov parametra a adresu uzla.
 
 Všetky parametre sú zadefinované na [wiki stránke][simplemotion-parameters] protokolu a takisto v [hlavičkovom súbore knižnice][simplemotion-parameters-source].
 
@@ -61,6 +61,7 @@ Ešte dodám, že celá knižnica je napísaná v jazyku C. Neskôr sa to ukáž
 Či už portujete knižnicu, ako je tá moja, alebo nejaký zložitý herný engine, základný postup sa až tak nelíši. V prvom kroku potrebujete dať dokopy čo najviac informácií o zdrojovej platforme, cieľovej platforme a ideálne aj ohľadom architektúry a štruktúry kódu projektu, ktorý sa snažíte portovať. Všetko potrebné som zhrnul v bode vyššie.
 
 V ďalšom kroku som si repozitár so zdrojovými kódmi sklonoval do svojho počítača:
+
 ```bash
 git clone git@github.com:GraniteDevices/SimpleMotionV2.git
 Cloning into 'SimpleMotionV2'...
@@ -73,16 +74,19 @@ Resolving deltas: 100% (807/807), done.
 ```
 
 Keďže môj počítač je medzi podporovanými platformami, pokúsil som sa knižnicu skompilovať. Chcel som vidieť, aký bude výstup, prípadne aké chyby vyhodí kompilátor. Autori majú rozbehanú automatizáciu cez [Travis CI][travis-ci]. Stačilo sa mi pozrieť na súbor `.travis.yml` a našiel som, čo som potreboval. Knižnica má pripravený Makefile a dokonca aj testy. Zostavíme ju jednoducho:
+
 ```bash
 make
 ```
 
 A testy (aj keď ich nie je veľa) spustíme takto:
+
 ```bash
 make test
 ```
 
 Na zdrojovej platforme sa knižnica úspešne skompilovala. Hoci kompilátor vyhodil nejaké chyby, podľa komentárov v kóde usudzujem, že sú očakávané.
+
 ```bash
 ...
 drivers/tcpip/tcpclient.c:255:16: warning: cast from pointer to integer of different size [-Wpointer-to-int-cast]
@@ -96,6 +100,7 @@ Toto by mal byť váš prvý cieľ. Očakáva sa, že knižnicu na novej platfor
 Z toho, ako funguje zostavovanie kódu na Arduino, vyplýva, že knižnicu nedokážeme zostaviť priamo. Potrebujeme vytvoriť nejaký jednoduchý sketch, ktorý bude volať funkciu z tejto knižnice. Môže to byť hocičo. Arduino IDE nájde v projekte závislosť na vašu knižnicu a pokúsi sa ju zostaviť. Pravdepodobne v tomto kroku zlyhá, tak ako u mňa.
 
 Knižnicu samozrejme ešte nemáte v registri Arduino knižníc. Arduino vám umožňuje nainštalovať cez IDE `.zip` archív s kódom knižnice, alebo si viete knižnicu nakopírovať sami. Arduino IDE hľadá knižnice v konkrétnych priečinkoch, v mojom prípade:
+
 ```bash
 [vzahradnik@EliteBook ~]$ ls -la Arduino/libraries/
 total 4
@@ -110,6 +115,7 @@ drwxr-xr-x 1 vzahradnik vzahradnik 146 jul 26 11:16 SimpleMotionV2-Arduino
 Je úplne jedno, ako pomenujete priečinok s knižnicou. Arduino IDE hľadá hlavičkové súbory vo všetkých týchto priečinkoch.
 
 Môj úplne prvý Arduino sketch vyzeral nejako takto:
+
 <div className="Image__Medium">
   <img src="./images/first-arduino-ide-build.png" alt="Prvé zostavenie knižnice na Arduino IDE" />
   <figcaption>Prvé zostavenie knižnice na Arduino IDE</figcaption>
@@ -117,6 +123,7 @@ Môj úplne prvý Arduino sketch vyzeral nejako takto:
 ```
 
 Prekvapivo, tých chýb bolo oveľa menej ako som čakal. Chybu s includom som vyriešil jednoducho:
+
 ```diff
 diff --git a/devicedeployment.c b/devicedeployment.c
 index 0eb954f..2995a41 100755
@@ -134,6 +141,7 @@ index 0eb954f..2995a41 100755
 
 ## Zablokovanie funkčnosti, ktorú nie je možné portovať
 Prekvapivo po tejto úprave sa knižnica zostavila. Rozhodne to však neznamená, že je aj funkčná. Arduino IDE pravdepodobne kompiluje len to, čo musí. V sketchi includujem súbor `simplemotion.h`, niekde v ňom sa includuje `devicedeployment.h` a ten includuje `crc.h`. Includy teda zbehnú pre všetky súbory naviazané na ten, ktorý zahrňujete v projekte. Avšak skompiluje sa len tá funkčnosť, ktorú používate. Ja som používal jedinú funkciu, `smGetVersion()`, ktorá na žiadnej inej nezávisela, a preto kód zbehol. Napriek nedokonalostiam je to dobrá začiatočná pozícia. Súbor `simplemotion.h` totiž includuje aj hlavičkové súbory ako tieto:
+
 ```c
 ...
 #include <stdio.h>
@@ -143,7 +151,7 @@ Prekvapivo po tejto úprave sa knižnica zostavila. Rozhodne to však neznamená
 
 Prekvapilo ma, že tieto súbory pre moju architektúru našiel. Arduino framework tieto súbory neimplementuje, takže pravdepodobne budú súčasťou kompilátora [GCC pre architektúru AVR][avr-gcc], ktorú používam. Neskôr som túto domnienku aj potvrdil. Paralelne s Arduino IDE mám rozbehané aj [PlatformIO][platformio], ktoré si sťahuje závislosti, ako napríklad tento kompilátor, do priečinka `.platformio/packages`. Priamo v ňom som našiel priečinok `toolchain-atmelavr`, obsahujúci hlavičkové súbory poskytované kompilátorom, a tiež priečinok `framework-arduino-avr`, poskytujúci hlavičkové súbory Arduino frameworku. Možnosť pozrieť si tieto súbory a hľadať v nich definície funkcií či C++ tried sa ukázala ako veľmi výhodná.
 
-Môj kompilátor implementuje väčšinu štandardnej knižnice jazyka C, preto kompilácia prebehla. No v knižnici SimpleMotion sú aj volania, ktoré vyžadujú smerník na súbor a podobne. Prirodzene, na mikrokontroléri so súbormi pracovať nemôžeme. Kód sa síce zostaví, ale to neznamená, že aj funguje. V ďalšom kroku som sa rozhodol zmapovať, aké funkcie zo štandardnej knižnice C knižnica SimpleMotion vlastne volá. Vo všetkých súboroch som teda zakomentoval include riadky a pozoroval, na čom padne kompilácia. Kompilácia mi vygenerovala asi cez 2000 riadkov chýb, ale väčšina sa opakovala. Prehľadne som si zmapoval, aké funkcie knižnica používa a určil som tie, ktoré potrebujem nahradiť za nejaký funkčný Arduino variant.
+Môj kompilátor implementuje väčšinu štandardnej knižnice jazyka C, preto kompilácia prebehla. No v knižnici SimpleMotion sú aj volania, ktoré vyžadujú smerník na súbor a podobne. Prirodzene, na mikrokontroléri so súbormi pracovať nemôžeme. Kód sa síce zostaví, ale to neznamená, že aj funguje. V ďalšom kroku som sa rozhodol zmapovať, aké funkcie zo štandardnej knižnice C SimpleMotion vlastne volá. Vo všetkých súboroch som teda zakomentoval include riadky a pozoroval, na čom padne kompilácia. Kompilácia mi vygenerovala asi cez 2000 riadkov chýb, ale väčšina sa opakovala. Prehľadne som si zmapoval, aké funkcie knižnica používa a určil som tie, ktoré potrebujem nahradiť za nejaký funkčný Arduino variant.
 
 ```bash
 ...
@@ -182,6 +190,7 @@ Môj kompilátor implementuje väčšinu štandardnej knižnice jazyka C, preto 
 ```
 
 Už na prvý pohľad vidím, že so súbormi pracuje len kód na nahrávanie firmvéru do driverov, `devicedeployment.c`. Je to logické, odniekiaľ tie dáta potrebuje čítať. Táto funkčnosť však nie je kritická, je uvedená len ako voliteľná, a preto som ju zablokoval. Využil som na to direktívy preprocesora. Keď kompilujete knižnicu pre Arduino, niekde sa zadefinuje flag `ARDUINO`. Následne si môžem kontrolovať, či beží kód v tomto prostredí. Robí sa to takto:
+
 ```c
 #ifdef ARDUINO
 // Veci špecifické pre Arduino
@@ -224,7 +233,7 @@ Ak sa nám doteraz knižnicu darilo úspešne skompilovať, po povolení flagu `
 #define SM_D2XX_H
 
 #ifndef ARDUINO
-// Original code
+// Pôvodný kód
 #endif // ARDUINO
 #endif
 ```
@@ -236,7 +245,7 @@ smint32 controllinoRs485PortRead(smBusdevicePointer busdevicePointer, smuint8 *b
 {
     smint32 n = 0;
 
-    // Read only when there's data
+    // Čítaj iba keď sú dostupné dáta
     if (Serial3.available() > 0) {
           n = Serial3.readBytes(buf, size);
 
@@ -283,7 +292,7 @@ Ten najčastejší bol problém linkera.
   <figcaption>Knižnica sa nezostaví</figcaption>
 </div>
 
-Tento problém som riešil aspoň hodinu. Súbory som v priečinku mal a kód ich volal správne, tak prečo ich Arduino linker nevie nájsť? Asi to súvisí s ich [špecifikáciou knižníc][arduino-library-specification]. Kedysi sa kód Arduino knižníc ukladal priamo do koreňa repozitára. Keď nájde Arduino takto organizovaný kód, automaticky predpokladá, že všetky C-čkovské súbory sú v tej istej hierarchii, kód v podpriečinkoch neskompiluje vôbec. Riešením bolo preorganizovať kód tak, aby zodpovedal novšej špecifikácii. Tá očakáva kód knižnice v priečinku `src` a tiež definovaný manifest s popisom knižnice v koreni repozitára. Po týchto jednoduchých úpravách už kód kompiloval.
+Tento problém som riešil aspoň hodinu. Súbory som v priečinku mal a kód ich volal správne, tak prečo ich Arduino linker nevie nájsť? Asi to súvisí s ich [špecifikáciou knižníc][arduino-library-specification]. Kedysi sa kód Arduino knižníc ukladal priamo do koreňa repozitára. Keď nájde Arduino takto organizovaný kód, automaticky predpokladá, že všetky C-čkovské súbory sú v tej istej hierarchii, kód v podpriečinkoch neskompiluje vôbec. Riešením bolo preorganizovať kód tak, aby zodpovedal novšej špecifikácii. Tá očakáva kód knižnice v priečinku `src` a tiež definovaný manifest s popisom knižnice v koreni repozitára. Po týchto jednoduchých úpravách už bol kód skompilovaný.
 
 ## Výpis na sériovú linku nefunguje
 Na tento problém som opäť narazil pri kompilácii projektu cez Arduino IDE. Keď skompilujem sketch a zahrniem doňho moju knižnicu, nefunguje výpis na sériovú linku. Dlho som skúmal, či nemám v kóde niečo, čo by narušilo základnú funkčnosť výpisu Arduino frameworku, ale nič som nenašiel. Predpokladám, že opäť len Arduino IDE niečo do kompilácie nezahrnulo. Rovnaký projekt som vyskúšal aj v prostredí [PlatformIO][platformio], kde výpis na sériovú linku funguje bezchybne. Osobne si myslím, že pri portovaní je dobré sa vyhnúť čo najviac problémom a preto odporúčam stabilné prostredie, kde máte zostavovanie viac pod kontrolou. Knižnicu by ste mali odladiť pre Arduino IDE až úplne na záver, keď už viete, že kód funguje.
@@ -417,21 +426,25 @@ extern "C" {
 Ak máte niekde v kóde funkcie, ktoré očakávajú ako parameter smerník na objekt, takýto kód sa neskompiluje. Ako som už ukázal, pre C-čkovské moduly je pojem trieda neznámy a kompilátor vyhlási pri tomto type chybu. Momentálne som problém obišiel tak, že som zadefinoval funkciu, ktorá očakáva smerník na blok `void` a neskôr v C++ kóde si tento smerník pretypujem na C++ objekt. Viem, že to nie je dokonalé, ale funguje to.
 
 Najprv som si zadefinoval cez typedef nový typ:
+
 ```c
 typedef void* ArduinoSerial;
 ```
 
 Následne už som mohol tento typ použiť ako parameter funkcie:
+
 ```c
 LIB void smSetDebugOutput( smVerbosityLevel level, ArduinoSerial serial );
 ```
 
 V Arduino sketchi normálne pošlem odkaz na objekt `Serial`:
+
 ```cpp
 smSetDebugOutput(SMDebugLow, &Serial);
 ```
 
 Ten sa pretypuje na `ArduinoSerial`, prelezie cez C-čkovský kód až do `arduino_helper` modulu, kde si ho pretypujem na smerník na objekt `Print`. Následne už môžem zapisovať na sériovú linku tak, ako som zvyknutý.
+
 ```cpp
 /*
  * arduino_helper.cpp
@@ -465,11 +478,13 @@ pio/libdeps/uno/SimpleMotionV2-Arduino/src/simplemotion.cpp: In function 'int sm
 Po hlbšej analýze som našiel problém. Arduino dosky postavené na platforme AVR definujú veľkosť typu `int` 16 bitov. To som potvrdil pre istotu tak, že som skompiloval jednoduchý sketch, kde bolo volanie `sizeof(int)`. Dostal som hodnotu 2 bajty, čiže 16 bitov. Knižnica SimpleMotion definuje bitové masky a u niektorých hodnôt prekračujeme rozsah 16 bitov. Problém sa nachádza na dvoch miestach — v súbore definícii `simplemotion_defs.h` a tiež v súbore, kde sa nachádza kód na výpočet CRC, `crc.c`.
 
 Za väčšinu upozornení bol zodpovedný jeden riadok:
+
 ```c
 #define BV(bit) (1<<(bit))
 ```
 
 Chybu som upravil tak, že som namiesto typu `int` použil `long`, ktorý má na platforme AVR 4 bajty.
+
 ```c
 #ifdef __AVR__
 /* Int on Arduino AVR boards is only 2 bytes, which is not enough

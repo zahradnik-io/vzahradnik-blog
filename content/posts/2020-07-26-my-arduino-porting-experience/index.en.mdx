@@ -60,6 +60,7 @@ I will add that the whole library is written in C. Later, it will be quite an im
 Whether you're porting a library like mine or some complex game engine, the fundamental process isn't that different. In the first step, you need to put together as much information as possible about the host platform, the target platform, and ideally also about the architecture and code structure of the project you are trying to port. I have summarized everything necessary in the point above.
 
 As a next step, I copied the source code repository to my computer:
+
 ```bash
 git clone git@github.com:GraniteDevices/SimpleMotionV2.git
 Cloning into 'SimpleMotionV2'...
@@ -72,16 +73,19 @@ Resolving deltas: 100% (807/807), done.
 ```
 
 Since my computer is among the supported platforms, I tried to compile the library. I wanted to see what the output would be like or what errors the compiler would print. The authors have automation running via [Travis CI][travis-ci]. I just looked at the `.travis.yml` file and found what I needed. The library has a Makefile, which we can use, and also some unit tests. We can build it easily:
+
 ```bash
 make
 ```
 
 And we can run the tests (albeit there aren't many) like this:
+
 ```bash
 make test
 ```
 
 The library was successfully compiled on the host platform. Although the compiler printed out some errors, I assume they were expected based on the code comments.
+
 ```bash
 ...
 drivers/tcpip/tcpclient.c:255:16: warning: cast from pointer to integer of different size [-Wpointer-to-int-cast]
@@ -95,6 +99,7 @@ This should be your first goal. It's expected that you won't be able to build th
 Given how code compilation works on Arduino, we can't build the library directly. We need to create some simple sketch that will call a function from this library. It can be anything. Arduino IDE will find a dependency on your library in the project and try to build it. It will probably fail at this step, as it did on my PC.
 
 Of course, you don't have the library in the Arduino library register yet. Arduino allows you to install a `.zip` archive with library code via IDE, or you can copy the library yourself. The Arduino IDE searches libraries in specific folders, in my case:
+
 ```bash
 [vzahradnik@EliteBook ~]$ ls -la Arduino/libraries/
 total 4
@@ -109,6 +114,7 @@ drwxr-xr-x 1 vzahradnik vzahradnik 146 jul 26 11:16 SimpleMotionV2-Arduino
 It doesn't matter what you name a folder with a library. The Arduino IDE looks for header files in all of these folders.
 
 My very first Arduino sketch looked something like this:
+
 <div className="Image__Medium">
   <img src="./images/first-arduino-ide-build.png" alt="First attempt to build the library on Arduino IDE" />
   <figcaption>First attempt to build the library on Arduino IDE</figcaption>
@@ -116,6 +122,7 @@ My very first Arduino sketch looked something like this:
 ```
 
 Surprisingly, there were far fewer errors than I expected. I solved the include error simply:
+
 ```diff
 diff --git a/devicedeployment.c b/devicedeployment.c
 index 0eb954f..2995a41 100755
@@ -133,6 +140,7 @@ index 0eb954f..2995a41 100755
 
 ## Blocking functionality that cannot be ported
 Surprisingly, after this modification, the library was built successfully. However, this certainly doesn't mean that it's functional. Arduino IDE probably compiles only what it needs to. In the sketch, I included the file `simplemotion.h`. Somewhere in it, there's an include statement for `devicedeployment.h`, which in turn includes `crc.h`. Therefore, Arduino IDE will include all files referenced from the file defined in the project. However, only the functionality you use is compiled. I used only a single function, `smGetVersion()`, which didn't depend on any other, so the code was built successfully. Despite the imperfections, this is a good starting position. The `simplemotion.h` file also includes header files such as the following:
+
 ```c
 ...
 #include <stdio.h>
@@ -181,6 +189,7 @@ My compiler implements most of the standard C library, so the compilation was su
 ```
 
 At first glance, I see that only the code for uploading firmware to the drives, `devicedeployment.c` works with the files. It's logical; it needs to read the data from somewhere. However, this functionality is not critical, it is only listed as optional, so I blocked it. I used preprocessor directives for this. When you compile a library for Arduino, the `ARDUINO` flag is defined somewhere. Then I can check if the code is running in this environment. This is done as follows:
+
 ```c
 #ifdef ARDUINO
 // Arduino-specific code
@@ -417,21 +426,25 @@ extern "C" {
 If you have functions somewhere in your code that expect a pointer to an object as a parameter, such code will not compile. As I have already shown, the term class is unknown for C modules, and the compiler declares an error with this type. Momentarily, I bypassed the problem by defining a function that expects a pointer to a `void` block, and later in C++ code, I cast this pointer to a C++ object. I know it's not perfect, but it works.
 
 First, I defined a new type via typedef:
+
 ```c
 typedef void* ArduinoSerial;
 ```
 
 Subsequently, I could use this type as a function parameter:
+
 ```c
 LIB void smSetDebugOutput( smVerbosityLevel level, ArduinoSerial serial );
 ```
 
 In the Arduino sketch, I simply pass a reference to the `Serial` object:
+
 ```cpp
 smSetDebugOutput(SMDebugLow, &Serial);
 ```
 
 This object is then cast to `ArduinoSerial`, and it's passed through the C-code all the way to the `arduino_helper` module, where I cast it to the pointer to the `Print` object. Then I can print to the serial line as I'm used to doing.
+
 ```cpp
 /*
  * arduino_helper.cpp
@@ -465,11 +478,13 @@ pio/libdeps/uno/SimpleMotionV2-Arduino/src/simplemotion.cpp: In function 'int sm
 After a deeper analysis, I found a problem. Arduino boards built on the AVR platform define the size of an `int` type as 16 bits. I confirmed this by compiling a simple sketch where I added the call to `sizeof(int)`. I got a value of 2 bytes, i.e., 16 bits. The SimpleMotion library defines bitmasks, and for some values, we exceed the range of 16 bits. The problem is located in two places — the definition file `simplemotion_defs.h` and the file where the code for calculating CRC is, `crc.c`.
 
 For most of the warnings, only a single line was responsible:
+
 ```c
 #define BV(bit) (1<<(bit))
 ```
 
 I fixed the error by using `long` instead of `int`, which has 4 bytes on the AVR platform.
+
 ```c
 #ifdef __AVR__
 /* Int on Arduino AVR boards is only 2 bytes, which is not enough
