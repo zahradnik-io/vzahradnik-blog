@@ -1,0 +1,160 @@
+---
+title: Nový rok, nové výzvy
+excerpt: Velkou část roku 2020 jsem strávil přemýšlením, co chci od života. Letos tyto změny začnu dělat.
+author: Vladimír Záhradník
+date: 2021-01-01
+categories: lookback development future selfawareness
+hero: ./images/hero.jpg
+lang: cs_CZ
+secret: true
+slug: novy-rok-nove-vyzvy-cz
+---
+
+Nový rok pro mě většinou začíná mými narozeninami. Vždy, když jsem o rok starší, si vyhodnotím, kam jsem se za uplynulý rok posunul a přemýšlím, co udělám dál. Rok 2020 byl však v mnohém jiný. Událo se toho tolik, že jsem se rozhodl udělat výjimku a bilancovat i na ten kalendářní Nový rok.
+
+## Pracovní projekty
+Kromě COVID-u byl pro mě rok 2020 mimořádně úspěšný. Po dvou letech vidím, jak se mi podnikání rozbíhá a už teď mám v pořadníku několik projektů, kde jsou lidé ochotni za mnou počkat měsíc-dva. Asi jste si všimli, že od srpna jsem nenapsal ani jeden nový příspěvek. Ne že bych nechtěl. Dokonce si uvědomuji, jak mi psaní chybělo. Byl jsem však tak vytížen prací, že na jiné nezbýval čas. Blogování mě zatím ještě neživí.
+
+### Home Assistant
+Začátkem minulého roku jsem spolupracoval na projektu, který v mnohém připomínal inteligentní domácnost. Jen to bylo určeno do průmyslu. Měli jsme dvě možnosti: postavit řešení zákazníkovi na zelené louce nebo využít náš čas tak, že upravíme stávající řešení pro naše potřeby. Rozhodli jsme se pro druhou možnost a zvolili jsme si otevřený software pro automatizaci domácnosti, [Home Assistant][home-assistant]. Musel jsem si nastudovat jeho architekturu, pochopit kód, dostudovat Python a nakonec se naučit spolupracovat s ostatními vývojáři. Splnil se mi takový malý sen. Vždycky jsem chtěl pracovat na něčem, co má smysl, a zároveň s čím se můžu pochlubit ostatním. Za ty roky jsem dělal na mnoha věcech, ale tyto projekty zůstávají za branami mých zaměstnavatelů. Častokrát ještě i s dodatkem o mlčenlivosti.
+
+<div class="Image__Medium">
+  <YouTube videoId="r8B1lWEOUlU" />
+  <figcaption>Přizpůsobený řídící panel Home Assistanta</figcaption>
+</div>
+
+Tím, že jsme měli finance od zákazníka na vývoj zajištěny, byl jsem poprvé placen za to, že vyvíjím otevřený software a mohl jsem na tom dělat intenzivně, nejen občas po víkendech. Projekt zpomalil COVID a v této chvíli čekáme, co dál. S vývojem Home Assistanta pokračuji však i nadále, už jako dobrovolník. Pomaličku v něm vylepšuji integraci pro [Modbus][modbus]. A začal jsem si postupně automatizovat i věci u mě doma. Když mi něco v tomto produktu chybí, dodělám si to. Je to skvělá schopnost.
+
+### Automatizace výrobní linky
+Začátkem srpna jsem se na tři týdny polopracovně přesunul do České republiky. Spolupracoval jsem na automatizaci výrobní linky pro e-cigarety. První dny ve výrobní hale byly pro mě jako dovolená. Těšil jsem se jako malé dítě, že vidím místa, kam bych se běžně nedostal. Časem vám to však začne lézt na mozek. Dělali jsme více než 12 hodin denně, do toho jsme cestovali stovky kilometrů tam a zpět. Vedle toho pracovního nasazení jsem si stihl udělat asi jen dva zcela volné dny a dosud se směji, jak mi lidé na základě pár fotek psali: „Vlado, užij si dovolenou.“ Zážitků však mám i takto dost a stálo to za to.
+
+<div className="Image__Medium">
+  <img src="./images/lake.jpg" alt="Jezero" />
+  <figcaption>Během mé krátké dovolené...</figcaption>
+</div>
+
+Ukázalo se, že automatizovat výrobní linku je náročnější, než jsme si mysleli. Projekt běží dosud, jen už bez mé přítomnosti. Už jsem na Slovensku a nedokážu vypomáhat tak dobře, jako když jsem byl přímo na místě.
+
+### Přenosný rozvaděč s GPS
+Na tomto projektu jsem vůbec dělat neměl, ale ta výrobní linka pohltila pracovní dobu mých kolegů naplno. A jelikož zakázky pro jiné klienty také nepočkají, nastoupil jsem na tento úkol já.
+
+<div className="Image__Medium">
+  <img src="./images/m5stack.jpg" alt="M5Stack" />
+  <figcaption>GPS sledovací zařízení postavené na M5Stack Grey</figcaption>
+</div>
+
+Aniž bych zajížděl do detailů, mým úkolem bylo naprogramovat zařízení, které monitoruje stav elektřiny a zároveň sleduje svou polohu. Vybrali jsme si platformu [M5Stack][m5stack] Grey. Postupně jsem do ní integroval GPS, GSM modul, akcelerometr, baterii a ovládání relé. Zároveň jsem zajišťoval, aby to zařízení umělo posílat SMSky, emaily, odesílat polohu na server a přijímat příkazy. Nezdá se to, ale narážel jsem na mnohé hardwarové limity. No nakonec se vše podařilo. V těchto dnech kolegové skládají a testují finální kusy.
+
+### Android aplikace pro pokladníky
+Někdy koncem října mě oslovil kamarád. Ptal se, jestli neznám někoho, kdo by vypomohl na jednom projektu v jeho firmě. Vývoj nestíhali a potřebovali sehnat externího spolupracovníka. V té době jsem měl volnější období a tak jsem na to přikývl.
+
+Na chvíli jsem se musel přeorientovat z embedded vývojáře na Android. A řeknu vám, nebylo to pro mě úplně jednoduché. Nejen že jsem po dlouhé době opět programoval v Androidu, i aplikace byla z oblasti financí, kde jsem měl dosud nulové zkušenosti. S projektem jsem se potřeboval seznámit velmi rychle a přinášet firmě hodnotu. V začátcích mi to však nešlo. Asi poprvé v životě jsem i já narazil a nevěděl jsem se na projektu uchytit. Asi po dvou týdnech jsme měli spolu nepříjemný telefonát, kde jsme si věci vyjasnili a dali jsme si druhou šanci. Lidi, s nimiž spolupracuji, jsem dodnes osobně neviděl a až tady jsem si uvědomil, jaké je to důležité. Když nemáte přímý kontakt a neznáte se tak dobře, začnete si domýšlet namísto toho, abyste komunikovali. Tento neduh se nám snad podařilo úspěšně dořešit a včera, na Silvestra, jsme předali aplikaci zákazníkovi.
+
+I když mě tento projekt nebavil, zapracovala u něj moje profesionální čest. Mohl jsem přiznat, že to nedávám a zbaběle odejít. Ale když už jsem se na to dal, řekl jsem si, že udělám vše, co je v mých silách, abych dokončil vše, co ode mne chtějí. Začali jsme fungovat v režimu, kdy mi projektový manažer řekl v pondělí, což ode mě za týden chtějí udělat, a já jsem si práci naplánoval už podle sebe. Častokrát jsem dělal i přes víkend, jednou jsem probděl dokonce celou noc, ale v pondělí jsem dodal to, co jsem slíbil.
+
+Těší mě, že jsem tuto těžkou zkoušku zvládl. Velmi mi v tomto pomohli moji přátelé. Sice nemohli za mě práci udělat a hořkou kaši jsem si musel sníst do dna já sám, ale dostalo se mi od nich slov povzbuzení, že to zvládnu. Vážím si vás a děkuji vám za to.
+
+## Můj pokrok v řečnění
+Zjistil jsem, že co se týče vystupování na veřejnosti, je to se mnou jako na houpačce. Pravidelně dostávám zpětnou vazbu od ostatních lidí a vím, že jsem se v řečnění a vystupování dostal alespoň rok zpátky. Částečně tomu napomohl fakt, že jsem přestal vystupovat před fyzickým publikem a přesunul jsem se před kameru. No stále více si uvědomuji, že mé výkyvy bude mít na svědomí moje psychika. Nejbližší rok se na ni chci více zaměřit. Začnu si o tom více číst a začnu na ní pracovat. Rád bych se v roce 2021 dostal do stavu, že již takové výkyvy mávat nebudu.
+
+## Úspěchy mého blogu
+Přestože aktivně jsem nic nenapsal od srpna, podařilo se mi napsat tři příspěvky, které lidi zaujaly a najednou mi na moji stránku chodí tisíce lidí měsíčně.
+
+<div class="Image__Medium">
+  <YouTube videoId="groE04ridXE" />
+  <figcaption>Doprovodné video k mému příspěvku o stahování videí z Facebooku</figcaption>
+</div>
+
+Velmi rád s nimi diskutuji a těší mě, že si začínají moji čtenáři odpovídat na otázky i sami. Je to malý zárodek komunity. S rozvojem blogu nespěchám, ale vidím, že už se začíná rozbíhat, což mě velmi těší. Rád bych v dalším roce zapracoval na funkčnosti mé stránky. Nutně potřebuji spustit vlastní mailing list a určitě bych rád měl stránku dvojjazyčně. Všechny mé příspěvky už jsou ve dvou jazycích, avšak zatím vidíte veřejně pouze anglické verze. Toto chci změnit.
+
+## Operace uší
+Jak mnozí víte, odmalička mi odstávaly uši. Nikdy jsem to neřešil a netrpěl jsem kvůli tomu komplexy. Zatímco jsem byl zalezlý někde v kanceláři, kde mě kromě kolegů nikdo neviděl, neřešil jsem to. No přirozeně s tím, jak začínám točit videa, jsem se rozhodl tento můj nedostatek odstranit. Mnozí jste mi říkali, že odstraňuji „svou značku.“ Já to tak nevnímám. Myslím si, že pokud si lidé na mně našli jednu nedokonalost, časem si najdou další.
+
+Zároveň jsem se začal zamýšlet i nad tím, že i když jsem vědomě komplexy netrpěl, možná to ovlivnilo moje podvědomí. Myslím, že alespoň částečně to na mou psychiku mělo vliv.
+
+Na operaci jsem šel dost pozdě. Paní doktorka mi řekla, že mě to bude bolet. Řeknu vám, ten pocit, když slyšíte, jak vám přes uši tahají jehlu s nití a nic přitom necítíte, je zvláštní.
+
+<div className="Image__Medium">
+  <img src="./images/otoplasty.jpg" alt="Po operaci uší" />
+  <figcaption>Po operaci uší</figcaption>
+</div>
+
+Operace proběhla dobře a ani následná bolest nebyla tak špatná, jak jsem čekal. Přesto však způsobila, že jsem první čtyři dny pořádně nespal. Není to jen tak najednou začít spát na zádech a uši mě přirozeně bolely.
+
+Měl jsem tedy čas přemýšlet a věřte mi, že o třetí ráno se na mnoho věcí díváte jinak. Tyto noční přemýšlení mi pomohli získat odstup. Před operací jsem se soustředil na práci a na to, co chci dosáhnout. Po operaci jsem přehodnotil, kam chci můj život směřovat. A našel jsem si přítelkyni.
+
+## Nová přítelkyně
+S Nely se známe už asi rok a půl z klubu Toastmasters Košice. Teprve nedávno jsem se dozvěděl, že v začátcích se mi vědomě vyhýbala kvůli mému direktivnímu komunikačnímu stylu. Později jsme začali spolupracovat ve vedení klubu a stali se z nás dobří přátelé. Právě tehdy, když jsem kvůli bolestem po operaci nemohl pořádně spát, jsem najednou zjistil, že na ni myslím jaksi příliš často. Do té doby jsem si to neuvědomoval, protože moje mysl byla nastavena na to, že nejbližší roky řeším podnikání a nic jiného.
+
+Přítelkyni jsem aktivně nehledal. Uvědomuji si totiž, že volného času nemám a nebudu mít tolik, kolik bych jí chtěl dát. Ale usoudil jsem, že toto rozhodnutí není na mně. Řekl jsem si, že tu moji tehdejší kamarádku oslovím a ať si ona řekne, zda jí takový vztah stojí za to. Náš vztah začal týden po mé operaci uší. Šel jsem na kontrolu za paní doktorkou a ten čas jsme využili i na příjemnou procházku v parku. Od té doby věci nabraly rychlý spád. Až se mi nechce věřit, že prošlo jen asi šest týdnů. Nely mě škádlí: „Vlado, proč si na tu operaci nešel už dříve?“ Všechno má svůj čas a toto přišlo v chladném listopadu během lockdownu. Náš vztah začal dva týdny po mé operaci uší. Rodí se v době, kdy jsou všechny restaurace zavřené a lidé se izolují do malých komunit.
+
+<div className="Image__Large">
+  <img src="./images/love.jpg" alt="Láska" />
+  <figcaption>Zdroj: Gabriel Ferraz, Pixabay</figcaption>
+</div>
+
+Je to těžká zkouška, ale myslím si, že pokud dáme toto, vznikne mezi námi silnější pouto. Řeknu vám, dosud jsem si neuvědomoval ten rozdíl, když s někým mluvím přes kameru, a když se setkáme osobně. Uvědomil jsem si, že při osobním setkání jsou pocity mnohem intenzivnější.
+
+*Aktualizace: Tuto zkoušku jsme nakonec přece jen nezvládli. Ukázalo se, že je jedno, jestli najdete shodu v různých tématech. To podstatné je, zda dokážete žít spolu pod jednou střechou. Na tomto ztroskotá podle mě většina vztahů, a ten náš nebyl výjimkou.*
+
+## Můj vztah s Bohem
+Nely je hluboce věřící katolička, já hledající se evangelík. Chodil jsem na církevní střední školu a zpětně si uvědomuji, že se mi náboženství i díky tomu zprotivilo. Měli jsme poměrně dost mnoho hodin náboženství a do toho jsme jednou týdně šli povinně každou středu do kostela. S rozhovoru s mým bývalým spolužákem vím, že nejsem jediný student s takovými pocity. Odkdy jsem šel na vysokou školu, do kostela jsem vkročil jen výjimečně. Ani by mě nenapadlo, že si jednou najdu přítelkyni, která bude hluboce věřící a že se k těmto věcem vrátím.
+
+<div className="Image__Large">
+  <img src="./images/cross.jpg" alt="Kříž" />
+  <figcaption>Zdroj: Gerd Altmann, Pixabay</figcaption>
+</div>
+
+Od mé střední školy prošlo již mnoho let a jsem otevřený tomu, abych dal vztahu s Bohem šanci. Protože však u mě převládá rozum, bude to pro mě výzva. Už déle jsem však uvažoval o tom, že začnu studovat Bibli. Alespoň jednou za život by to podle mě měl udělat každý křesťan. Já chci zjistit, co v té knize je a nejen to, co mi řekne farář vytržené z kontextu. Pokud se na to dám, Bibli budu postupně studovat několik let. Ty ostatní věci ohledně víry buď přijdou nebo ne. Jsem však tomu nakloněn.
+
+## Rozhovory
+Rok 2020 byl pro mě zlomový i v tom, jak jsem posílil vztah se svými přáteli. Odkdy jsme se všichni přesunuli do online prostředí a začali jsme fungovat přes videohovory, uvědomil jsem si, že na nich trávím mnohem více času než když jsme se setkávali osobně. Už skoro rok si pravidelně volám s asi pěti lidmi, s mnoha dalšími si volám nepravidelně. Někdy debatujeme půl hodinky, jindy hodinku a s jedním mým kamarádem, Havranem, pravidelně diskutujeme i přes čtyři hodiny a zastaví nás většinou jen to, že je třeba i spát.
+
+Rozhovory míváme různé. Některé jsou pracovní, některé polopracovní a většina z nich je soukromá a týká se všeho, co vás napadne. Tyto rozhovory mi zabírají hodiny týdně, ale nelituji z nich ani sekundu. Myslím si, že tak, jak přinášejí hodnotu mně, ji přinášejí i ostatním. A také jsem zjistil, že trávit čas takto mi přijde mnohem lepší než zapínat si Netflix.
+
+Vedle rozhovorů přes video jsem se začal s přáteli z blízkého okolí setkávat i osobně. Co začalo jako jednorázová aktivita, je najednou pravidelné čtvrteční „kolečko.“ Jednou mě oslovil kamarád Erik: „Vlado, nechtělo by se ti setkat a projít se po městě? Mám věci, které bych chtěl probrat a nechce se mi o nich psát.“
+
+S Erikem se setkáváme nepravidelně už přes dva roky. Chodíme spolu na túry do lesa, ale v zimě jsou naše možnosti omezené.
+
+<div className="Image__Medium">
+  <img src="./images/woods.jpg" alt="Les" />
+  <figcaption>Jedna z našich nedávných túr</figcaption>
+</div>
+
+Tyto rozhovory nám chyběly a rozhodli jsme se v nich pokračovat procházkami v nočním městě. Netrvalo dlouho a přidal se k nám i můj spolužák ze střední školy, Igor. A skvěle k nám zapadl. Vždy se setkáme zhruba ve stejnou dobu na stejném místě a až následně se dohadujeme, kam půjdeme a o čem si budeme povídat.
+
+## Soukromé kurzy angličtiny
+Jeden z mých kamarádů, Jano, umí angličtinu na velmi vysoké úrovni. Roky žil v zahraničí a pracoval i v jazykovědném ústavě. Když už jsme si pravidelně volali, navrhl mi, abychom si povídali rovnou anglicky. Chtěl mi tímto pomoci, za což mu děkuji. Anglicky jsem dlouho nemluvil a můj jazyk zdřevěněl. Teď, když jsem měl ze sebe něco dostat, nevěděl jsem to udělat plynule. Rozumím všemu, psaní mi také jde, ale při mluvení není čas přemýšlet nad větami. Tyto naše rozhovory pomohly. Uvědomil jsem si, že nehledám dokonalost, ale už se dokážu vyjadřovat v angličtině i před kamerou. Časem to bude jen a jen lepší.
+
+## Comenio a vzdělávací kurzy
+S tím jak se rok chýlil ke konci, jsme si i my s kamarádem uvědomili, že po roce jsme s naší vzdělávací platformou tam, kde jsme byli před rokem — úplně na začátku. Kamarád Marcel si stanovil cíl, že do konce roku ji musíme konečně spustit. Sice se nám to nepodařilo, ale aspoň jsme se pohnuli.
+
+Změnilo se i moje uvažování. Chtěl jsem začít tím, že budu točit videa na YouTube, kde se v první řadě naučím vystupovat v angličtině. No když Marcel řekl, že musíme platformu spustit nyní nebo nikdy, začal jsem i já přemýšlet. Pokud máme vzdělávací platformu, kde zpočátku nebude žádný obsah, co s tím uděláme? A došlo mi to: začnu obsah tvořit já.
+
+Rozhodl jsem se, že jako první udělám kurz verzovacieho systému [git][git]. Uvědomuji si, že to pro mnohé nebude záživná téma, ale něčím třeba prostě začít. A rozhodl jsem se, že tento kurz udělám nejlépe jak vím, i kdyby to mělo znamenat točit ty videa znovu a znovu. Už teď jsem se o něm vyprávěl s mnohými z vás a dostal jsem od vás cennou zpětnou vazbu. Například mi říkáte, co vám při práci s gitom není jasné. Mluvím i s lidmi, kteří toto slovo slyšeli ode mne poprvé. Když dokážu koncepty vysvětlit jim, myslím si, že mám hodnotný produkt.
+
+## Co mi přinese rok 2021?
+Rok 2020 byl pro mě v mnohém o přemýšlení a uvažování. Nyní, když vím, co chci, začnu to realizovat. Sny nejsou jen na to, aby se snili. Pokud sníte a tvrdě pracujete, začnou se vám plnit.
+
+<div className="Image__Large">
+  <img src="./images/compass.jpg" alt="Kompas" />
+  <figcaption>Zdroj: Gino Crescoli, Pixabay</figcaption>
+</div>
+
+Uvědomil jsem si, že i když mě programování baví, nechci se tím živit. Rád dělám na projektech, které jsou pro mě výzvou. Takové, které potrápí mou hlavu. Většina úkolů je však nudná a zabírá mi desítky hodin času. Programátorem rád zůstanu, ale bude to jen mým koníčkem. Vyberu si, na čem budu pracovat a budu na tom pracovat tolik, kolik chci já. Rok 2021 bude pro mě přechodným rokem. Zakázky zatím beru všechny, ale začnu je tlumit. Něco mám našetřeno a díky tomu dokážu fungovat asi půl roku až rok bez příjmu. Přesto rád zakázky vezmu. Jen už si budu dávat pozor na to, kolik času mi zaberou. Někdy to sice neodhadnu, ale alespoň se pokusím. Po zkušenostech z minula mi už odhady jdou docela dobře.
+
+I kdyby se však projekty ukázaly jako větší, pokusím se vyjednat, abych na nich pracoval jen na částečný úvazek. Tam, kde se nedohodneme, zakázku pravděpodobně odmítnu. Nejde to jinak. Jako programátor mám práce kolik chci, i placená je slušně, ale při tom pracovním vytížení se ze mě druhý Elon Musk nikdy nestane. Chci dělat na vlastních věcech, nyní je ten čas.
+
+Chci se také více zaměřit na knihy, které mi pomohou v osobnostním rozvoji. Dosud jsem je velmi nečetl, ale začal jsem si uvědomovat jejich důležitost. Ten čas, který nad nimi strávím, se mi mnohonásobně vrátí.
+
+Těším se také na úspěchy mého kamaráda, Havrana. Jsem rád, že jsme se my dva našli a že je tu někdo, kdo má podobné cíle jako já a s kým o nich mohu mluvit. Já pomáhám jemu, on zas mně. Navzájem jdeme dopředu a limit pro nás neexistuje.
+
+Do roku 2021 vkládám obrovské naděje. Začalo právě nové desetiletí a já ho chci začít jinak, lépe. Chci být nejlepší verzí sebe sama a chci se učit jak se jí stanu. A byl bych rád, kdyby rostli i lidé kolem mě. Říká se, že není důležitý cíl ale cesta. Mě ta moje baví každým dnem více a více.
+
+Přeji vám šťastný a úspěšný rok 2021.
+
+[//]: # (Used references)
+[home-assistant]: https://www.home-assistant.io/
+[modbus]: https://www.home-assistant.io/integrations/modbus/
+[git]: https://git-scm.com/
+[m5stack]: https://m5stack.com/
