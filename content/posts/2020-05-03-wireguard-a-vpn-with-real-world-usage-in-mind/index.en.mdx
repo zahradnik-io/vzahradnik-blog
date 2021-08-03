@@ -83,6 +83,8 @@ When I read their paper and had all this information in my head, I wrote the mai
 - ✔️ Available on many platforms, including Android and iOS. WireGuard is actively backported to older Linux kernels to extend support even more
 - ❌ The kernel driver is so far available only for Linux. Other platforms use a userspace client written in Go. However, according to the authors, it's still quite performant
 
+*Update 2021-08-03: The creators of WireGuard have announced a [native port running under the Windows NT kernel][wireguard-nt], still in the experimental phase. A kernel-level driver is already available on many other platforms. So it's only a matter of time before tunnel implementation running in userspace is replaced by such native implementations. Thus, the one shortcoming I found will be resolved.*
+
 For the tech-savvy readers, let me list a few more pros:
 - ✔️ Linux kernel driver doesn't use Crypto API. Instead, WireGuard re-implements some functions directly to avoid dynamic memory allocation
 - ✔️ WireGuard supports configurations with pure statically allocated memory 
@@ -348,3 +350,4 @@ I believe WireGuard has a bright future, and I look forward to seeing improved s
 [routeros]: https://mikrotik.com/software
 [luci]: https://openwrt.org/docs/guide-user/luci/luci.essentials
 [winbox-beta-wireguard]: https://forum.mikrotik.com/viewtopic.php?f=1&t=165248
+[wireguard-nt]: https://lists.zx2c4.com/pipermail/wireguard/2021-August/006887.html

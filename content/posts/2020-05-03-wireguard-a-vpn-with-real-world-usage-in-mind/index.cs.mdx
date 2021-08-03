@@ -84,6 +84,8 @@ Když jsem si přečetl jejich technický dokument a měl jsem v hlavě všechny
 - ✔️ Je k dispozici na mnoha platformách, včetně Androidu a iOS. Podpora pro WireGuard je aktivně přidávána i do starších linuxových jader, čímž se rozšiřuje podpora ještě více
 - ❌ Ovladač jádra je zatím k dispozici pouze pro Linux. Ostatní platformy používají klienta v uživatelském prostoru, který je napsán v Go. Ovšem podle autorů je stále dost výkonný
 
+*Aktualizace 3.8.2021: Tvůrci WireGuardu oznámili [nativní port běžící pod NT jádrem][wireguard-nt] Windows, zatím v experimentální fázi. Na mnoha jiných platformách již ovladač na úrovni jádra dostupný je. Takže je jen otázkou času, kdy bude implementace tunelu běžící v uživatelském prostoru nahrazena takovými nativními implementacemi. Tímto se odstraní i ten jediný nedostatek, který jsem našel.*
+
 Pro ty techničtější čtenáře přidám ještě několik plusů:
 - ✔️ Ovladač v linuxovém jádře nepoužívá Crypto API. Namísto toho WireGuard reimplementuje některé funkce napřímo, aby se vyhnul dynamické alokaci paměti
 - ✔️ WireGuard podporuje konfiguraci čistě pouze se staticky alokovanou pamětí
@@ -350,3 +352,4 @@ Věřím, že má WireGuard jasnou budoucnost a těším se na vylepšenou podpo
 [luci]: https://openwrt.org/docs/guide-user/luci/luci.essentials
 [winbox-beta-wireguard]: https://forum.mikrotik.com/viewtopic.php?f=1&t=165248
 [post-english]: https://www.zahradnik.io/wireguard-a-vpn-with-real-world-usage-in-mind
+[wireguard-nt]: https://lists.zx2c4.com/pipermail/wireguard/2021-August/006887.html
